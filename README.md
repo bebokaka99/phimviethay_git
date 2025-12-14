@@ -57,7 +57,7 @@ Dự án tập trung vào trải nghiệm người dùng mượt mà, giao diệ
 
 ### 1️⃣ Clone dự án
 ```bash
-git clone https://github.com/bebokaka99/phimviethay.git
+git clone https://github.com/bebokaka99/phimviethay_git
 cd phimviethay
 ```
 
