@@ -4,73 +4,77 @@ const dotenv = require('dotenv');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const hpp = require('hpp');
+const http = require('http'); 
+const passport = require('passport'); 
+const initSocket = require('./src/socket'); 
 
 require('./src/config/database'); 
-
-const authRoutes = require('./src/routes/authRoutes');
-const userRoutes = require('./src/routes/userRoutes');
-const commentRoutes = require('./src/routes/commentRoutes');
-const adminRoutes = require('./src/routes/adminRoutes');
-const movieRoutes = require('./src/routes/movieRoutes');
-
+require('./src/config/passport'); 
 dotenv.config();
+
 const app = express();
 const PORT = process.env.PORT || 5000;
+const server = http.createServer(app);
 
+// 1. Security Middlewares
+app.set('trust proxy', 1);
 app.use(helmet());
+app.use(hpp()); 
 
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, 
-    max: 150, 
-    message: { message: 'Bạn đã gửi quá nhiều yêu cầu, vui lòng thử lại sau 15 phút!' }
-});
-app.use('/api', limiter);
+// [QUAN TRỌNG - SỬA LẠI THỨ TỰ] 
+// Phải đặt Body Parser lên trước để đọc JSON
+app.use(express.json({ limit: '2mb' })); 
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
+// Sau đó mới đến Passport
+app.use(passport.initialize());
+
+// ... (Phần còn lại giữ nguyên) ...
+
+// 3. Cấu hình CORS
 const allowedOrigins = [
-    'http://localhost:5173', 
+    'http://localhost:5173',
+    'https://phimviethay.pages.dev',
     process.env.CLIENT_URL
-];
+].filter(Boolean);
 
 app.use(cors({
-    origin: function (origin, callback) {
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            callback(new Error('Không được phép truy cập bởi CORS'));
+            callback(new Error('Not allowed by CORS'));
         }
     },
     credentials: true
 }));
 
-// Tăng giới hạn json lên để tránh lỗi PayloadTooLarge
-app.use(express.json({ limit: '50mb' })); 
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-app.use(hpp()); 
-
-// --- Routes ---
-app.get('/ping', (req, res) => {
-    res.status(200).send('Pong! Server is alive.');
+const limiter = rateLimit({
+    windowMs: 5 * 60 * 1000, 
+    max: 300, 
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Thao tác quá nhanh, vui lòng thử lại sau vài phút.' }
 });
+app.use('/api', limiter);
 
-app.use('/api/auth', authRoutes);
-app.use('/api/user', userRoutes);
-app.use('/api/comments', commentRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/movies', movieRoutes);
+app.get('/', (req, res) => res.send('Server PhimVietHay (v2) is Running...'));
+app.get('/ping', (req, res) => res.status(200).send('Pong'));
 
-app.get('/', (req, res) => {
-    res.send('Server PhimVietHay đang chạy...');
-});
+app.use('/api/auth', require('./src/routes/authRoutes'));
+app.use('/api/user', require('./src/routes/userRoutes'));
+app.use('/api/comments', require('./src/routes/commentRoutes'));
+app.use('/api/admin', require('./src/routes/adminRoutes'));
+app.use('/api/movies', require('./src/routes/movieRoutes'));
+app.use('/api/analytics', require('./src/routes/analyticsRoutes'));
 
 app.use((err, req, res, next) => {
-    console.error('🔥 Lỗi hệ thống:', err.stack);
-    res.status(500).json({ 
-        message: 'Đã xảy ra lỗi hệ thống!',
-        error: process.env.NODE_ENV === 'development' ? err.message : {} 
-    });
+    if (process.env.NODE_ENV === 'development') console.error('🔥 Error:', err.stack);
+    res.status(500).json({ message: 'Lỗi hệ thống, vui lòng thử lại sau.' });
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 Server đang chạy tại http://localhost:${PORT}`);
+initSocket(server, allowedOrigins);
+
+server.listen(PORT, () => {
+    console.log(`🚀 Server ready at port ${PORT}`);
 });

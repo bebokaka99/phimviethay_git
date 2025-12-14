@@ -1,20 +1,26 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
+
+// Middlewares
 const verifyToken = require('../middlewares/authMiddleware');
-const adminMiddleware = require('../middlewares/adminMiddleware');
+const { verifyAdmin, verifySuperAdmin } = require('../middlewares/adminMiddleware');
 
-// Middleware chung cho toàn bộ route admin
-router.use(verifyToken, adminMiddleware);
+// ÁP DỤNG MIDDLEWARE BẢO VỆ TOÀN BỘ ROUTE ADMIN
+router.use(verifyToken, verifyAdmin);
 
-// Dashboard
+// --- Stats ---
 router.get('/stats', adminController.getStats);
 
-// Users
+// --- Users ---
 router.get('/users', adminController.getAllUsers);
-router.delete('/users/:id', adminController.deleteUser);
+router.delete('/users/:id', adminController.deleteUser); // Admin thường xóa được User thường
 
-// Comments
+// [SUPER ADMIN ONLY] Nâng quyền & Cấm User
+router.put('/users/:id/role', verifySuperAdmin, adminController.updateUserRole);
+router.put('/users/:id/ban', verifySuperAdmin, adminController.banUser);
+
+// --- Comments ---
 router.get('/comments', adminController.getAllComments);
 router.delete('/comments/:id', adminController.deleteComment);
 

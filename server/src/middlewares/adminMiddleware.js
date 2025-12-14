@@ -1,10 +1,24 @@
-const adminMiddleware = (req, res, next) => {
-    // req.user đã có từ verifyToken chạy trước đó
-    if (req.user && req.user.role === 'admin') {
-        next(); // Là admin, cho qua
+const verifyAdmin = (req, res, next) => {
+    const user = req.user;
+    if (!user) {
+        return res.status(401).json({ message: 'Chưa đăng nhập!' });
+    }
+    // Cho phép cả admin và super_admin
+    if (user.role === 'admin' || user.role === 'super_admin') {
+        next();
     } else {
-        res.status(403).json({ message: 'Truy cập bị từ chối! Bạn không phải Admin.' });
+        return res.status(403).json({ message: 'Không có quyền truy cập Admin!' });
     }
 };
 
-module.exports = adminMiddleware;
+const verifySuperAdmin = (req, res, next) => {
+    const user = req.user;
+    if (user && user.role === 'super_admin') {
+        next();
+    } else {
+        return res.status(403).json({ message: 'Yêu cầu quyền Super Admin!' });
+    }
+};
+
+// [QUAN TRỌNG NHẤT] Phải xuất ra Object chứa 2 hàm này
+module.exports = { verifyAdmin, verifySuperAdmin };
